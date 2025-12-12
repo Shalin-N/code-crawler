@@ -31,7 +31,7 @@ for platform in "${platforms[@]}"; do
     
     echo "Building for ${GOOS}/${GOARCH}..."
     
-    GOOS=$GOOS GOARCH=$GOARCH go build -ldflags="-s -w" -o "dist/${output_name}" ./src
+    GOOS=$GOOS GOARCH=$GOARCH go build -ldflags="-s -w" -o ".dist/${output_name}" ./src
     
     if [ $? -eq 0 ]; then
         echo "✓ Successfully built dist/${output_name}"
@@ -41,6 +41,6 @@ for platform in "${platforms[@]}"; do
 done
 
 echo ""
-echo "Build complete! Binaries are in the dist/ directory"
+echo "Build complete! Binaries are in the .dist/ directory"
 echo ""
-ls -lh dist/
+ls -lh .dist/
