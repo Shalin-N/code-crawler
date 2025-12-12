@@ -423,7 +423,7 @@ const htmlTemplate = `<!DOCTYPE html>
 
     <script>
         // Language distribution data
-        const languageData = {{toJSON .Analysis.Summary.Languages}};
+        const languageData = JSON.parse('{{toJSON .Analysis.Summary.Languages}}');
         const languageLabels = Object.keys(languageData);
         const languageCounts = Object.values(languageData);
 
@@ -501,48 +501,45 @@ const htmlTemplate = `<!DOCTYPE html>
         });
 
         // Directory Tree
-        const treeData = {{toJSON .Analysis.FileTree}};
+        const treeData = JSON.parse('{{toJSON .Analysis.FileTree}}');
         const treeElement = document.getElementById('directoryTree');
         
-        function buildTree(files) {
-            if (!files || files.length === 0) {
+        function renderNode(node, prefix = '', isLast = true) {
+            if (!node) {
                 return '<div class="tree-item">No files to display</div>';
             }
 
-            let tree = {};
-            files.forEach(file => {
-                const parts = file.Path.split('/');
-                let current = tree;
-                parts.forEach((part, idx) => {
-                    if (!current[part]) {
-                        current[part] = idx === parts.length - 1 ? null : {};
-                    }
-                    current = current[part];
-                });
-            });
-
-            function renderTree(obj, prefix = '', isLast = true) {
-                let html = '';
-                const entries = Object.entries(obj || {});
-                entries.forEach(([key, value], idx) => {
-                    const isLastEntry = idx === entries.length - 1;
-                    const connector = isLastEntry ? '└── ' : '├── ';
-                    const extension = isLastEntry ? '    ' : '│   ';
-                    
-                    if (value === null) {
-                        html += '<div class="tree-item tree-file">' + prefix + connector + key + '</div>';
-                    } else {
-                        html += '<div class="tree-item tree-dir">' + prefix + connector + key + '/</div>';
-                        html += renderTree(value, prefix + extension, isLastEntry);
-                    }
-                });
-                return html;
+            let html = '';
+            const connector = isLast ? '└── ' : '├── ';
+            const extension = isLast ? '    ' : '│   ';
+            
+            if (prefix !== '') {
+                if (node.is_dir) {
+                    html += '<div class="tree-item tree-dir">' + prefix + connector + node.name + '/</div>';
+                } else {
+                    html += '<div class="tree-item tree-file">' + prefix + connector + node.name + '</div>';
+                }
+            } else {
+                // Root node
+                html += '<div class="tree-item tree-dir">' + node.name + '/</div>';
             }
 
-            return renderTree(tree);
+            if (node.children && node.children.length > 0) {
+                node.children.forEach((child, idx) => {
+                    const isLastChild = idx === node.children.length - 1;
+                    const newPrefix = prefix === '' ? '' : prefix + extension;
+                    html += renderNode(child, newPrefix, isLastChild);
+                });
+            }
+
+            return html;
         }
 
-        treeElement.innerHTML = buildTree(treeData);
+        if (treeData) {
+            treeElement.innerHTML = renderNode(treeData);
+        } else {
+            treeElement.innerHTML = '<div class="tree-item">No files to display</div>';
+        }
     </script>
 </body>
 </html>
