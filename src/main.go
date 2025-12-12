@@ -15,8 +15,8 @@ const version = "1.0.0"
 func main() {
 	// CLI flags
 	targetPath := flag.String("path", ".", "Path to the repository to analyze")
-	outputPath := flag.String("output", "code-analysis", "Output directory for analysis files")
-	excludeDirs := flag.String("exclude", ".git,node_modules,vendor,dist,build,target,.venv,__pycache__", "Comma-separated list of directories to exclude")
+	outputPath := flag.String("output", ".analysis", "Output directory for analysis files")
+	excludeDirs := flag.String("exclude", ".git,node_modules,vendor,.dist,build,target,.venv,__pycache__", "Comma-separated list of directories to exclude")
 	generateViz := flag.Bool("viz", true, "Generate HTML visualization")
 	verbose := flag.Bool("verbose", false, "Enable verbose logging")
 	showVersion := flag.Bool("version", false, "Show version information")
