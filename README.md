@@ -26,10 +26,10 @@ git clone https://github.com/shalinnaidoo/code-crawler.git
 cd code-crawler
 
 # Build the executable
-go build -o code-crawler
+go build -o code-crawler ./src
 
-# Optional: Install to your PATH
-go install
+# Or use the build script for all platforms
+./scripts/build.sh
 ```
 
 ## Usage
@@ -84,6 +84,26 @@ go install
 
 # Analyze and save to specific location
 ./code-crawler -path ~/projects/rust-cli -output ~/Desktop/analysis
+```
+
+## Project Structure
+
+```
+code-crawler/
+├── src/                    # Source code
+│   ├── main.go            # CLI entry point
+│   ├── crawler.go         # Core scanning logic
+│   ├── dependencies.go    # Dependency analysis
+│   ├── utils.go           # Helper functions
+│   └── visualization.go   # HTML generation
+├── scripts/               # Build and utility scripts
+│   └── build.sh          # Multi-platform build script
+├── docs/                  # Documentation
+│   ├── QUICKSTART.md     # Quick start guide
+│   └── EXAMPLES.md       # Usage examples
+├── README.md             # Main documentation
+├── go.mod               # Go module file
+└── .gitignore          # Git ignore rules
 ```
 
 ## Output
@@ -197,16 +217,19 @@ Identify large files, deep nesting, and complexity hotspots.
 
 ```bash
 # macOS (Intel)
-GOOS=darwin GOARCH=amd64 go build -o code-crawler-mac-amd64
+GOOS=darwin GOARCH=amd64 go build -o code-crawler-mac-amd64 ./src
 
 # macOS (Apple Silicon)
-GOOS=darwin GOARCH=arm64 go build -o code-crawler-mac-arm64
+GOOS=darwin GOARCH=arm64 go build -o code-crawler-mac-arm64 ./src
 
 # Linux
-GOOS=linux GOARCH=amd64 go build -o code-crawler-linux
+GOOS=linux GOARCH=amd64 go build -o code-crawler-linux ./src
 
 # Windows
-GOOS=windows GOARCH=amd64 go build -o code-crawler.exe
+GOOS=windows GOARCH=amd64 go build -o code-crawler.exe ./src
+
+# Or use the build script
+./scripts/build.sh
 ```
 
 ## Advanced Configuration

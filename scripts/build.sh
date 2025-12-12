@@ -31,7 +31,7 @@ for platform in "${platforms[@]}"; do
     
     echo "Building for ${GOOS}/${GOARCH}..."
     
-    GOOS=$GOOS GOARCH=$GOARCH go build -ldflags="-s -w" -o "dist/${output_name}" .
+    GOOS=$GOOS GOARCH=$GOARCH go build -ldflags="-s -w" -o "dist/${output_name}" ./src
     
     if [ $? -eq 0 ]; then
         echo "✓ Successfully built dist/${output_name}"

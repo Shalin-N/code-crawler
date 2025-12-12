@@ -10,11 +10,11 @@ git clone https://github.com/shalinnaidoo/code-crawler.git
 cd code-crawler
 
 # Build the executable
-go build -o code-crawler
+go build -o code-crawler ./src
 
 # Or use the build script for all platforms
-chmod +x build.sh
-./build.sh
+chmod +x scripts/build.sh
+./scripts/build.sh
 ```
 
 ### Download Binary
@@ -63,19 +63,19 @@ Then open `self-analysis/visualization.html` in your browser.
 
 ```bash
 # macOS (Apple Silicon)
-GOOS=darwin GOARCH=arm64 go build -o code-crawler-mac-arm64
+GOOS=darwin GOARCH=arm64 go build -o code-crawler-mac-arm64 ./src
 
 # macOS (Intel)
-GOOS=darwin GOARCH=amd64 go build -o code-crawler-mac-amd64
+GOOS=darwin GOARCH=amd64 go build -o code-crawler-mac-amd64 ./src
 
 # Linux
-GOOS=linux GOARCH=amd64 go build -o code-crawler-linux
+GOOS=linux GOARCH=amd64 go build -o code-crawler-linux ./src
 
 # Windows
-GOOS=windows GOARCH=amd64 go build -o code-crawler.exe
+GOOS=windows GOARCH=amd64 go build -o code-crawler.exe ./src
 
 # Or use the build script
-./build.sh
+./scripts/build.sh
 ```
 
 ## What Gets Analyzed?
