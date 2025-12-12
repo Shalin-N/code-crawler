@@ -1,0 +1,30 @@
+# Binaries
+code-crawler
+code-crawler-*
+*.exe
+
+# Output directories
+code-analysis/
+analysis-output/
+.analysis/
+
+# Go
+*.o
+*.a
+*.so
+go.sum
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test files
+*.test
+coverage.txt
