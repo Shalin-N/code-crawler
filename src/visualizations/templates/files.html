@@ -1,0 +1,15 @@
+{{define "files"}}
+{{if .Analysis.Summary.LargestFiles}}
+<div class="section">
+    <h2 class="section-title">📁 Largest Files</h2>
+    <div class="file-list">
+        {{range .Analysis.Summary.LargestFiles}}
+        <div class="file-item">
+            <span class="file-name">{{relPath .Path}}</span>
+            <span class="file-size">{{formatBytes .Size}}</span>
+        </div>
+        {{end}}
+    </div>
+</div>
+{{end}}
+{{end}}

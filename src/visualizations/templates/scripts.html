@@ -1,0 +1,122 @@
+{{define "scripts"}}
+<script>
+    // Language distribution data
+    const languageData = JSON.parse('{{toJSON .Analysis.Summary.Languages}}');
+    const languageLabels = Object.keys(languageData);
+    const languageCounts = Object.values(languageData);
+
+    // Color palette
+    const colors = [
+        '#667eea', '#764ba2', '#f093fb', '#4facfe',
+        '#43e97b', '#fa709a', '#fee140', '#30cfd0',
+        '#a8edea', '#fed6e3', '#c1dfc4', '#deab6d'
+    ];
+
+    // Pie Chart
+    const pieCtx = document.getElementById('languagePieChart').getContext('2d');
+    new Chart(pieCtx, {
+        type: 'pie',
+        data: {
+            labels: languageLabels,
+            datasets: [{
+                data: languageCounts,
+                backgroundColor: colors,
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const label = context.label || '';
+                            const value = context.parsed || 0;
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = ((value / total) * 100).toFixed(1);
+                            return label + ': ' + value + ' files (' + percentage + '%)';
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // Bar Chart
+    const barCtx = document.getElementById('languageBarChart').getContext('2d');
+    new Chart(barCtx, {
+        type: 'bar',
+        data: {
+            labels: languageLabels,
+            datasets: [{
+                label: 'Number of Files',
+                data: languageCounts,
+                backgroundColor: colors,
+                borderWidth: 0,
+                borderRadius: 8
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        precision: 0
+                    }
+                }
+            }
+        }
+    });
+
+    // Directory Tree
+    const treeData = JSON.parse('{{toJSON .Analysis.FileTree}}');
+    const treeElement = document.getElementById('directoryTree');
+    
+    function renderNode(node, prefix = '', isLast = true) {
+        if (!node) {
+            return '<div class="tree-item">No files to display</div>';
+        }
+
+        let html = '';
+        const connector = isLast ? '└── ' : '├── ';
+        const extension = isLast ? '    ' : '│   ';
+        
+        if (prefix !== '') {
+            if (node.is_dir) {
+                html += '<div class="tree-item tree-dir">' + prefix + connector + node.name + '/</div>';
+            } else {
+                html += '<div class="tree-item tree-file">' + prefix + connector + node.name + '</div>';
+            }
+        } else {
+            // Root node
+            html += '<div class="tree-item tree-dir">' + node.name + '/</div>';
+        }
+
+        if (node.children && node.children.length > 0) {
+            node.children.forEach((child, idx) => {
+                const isLastChild = idx === node.children.length - 1;
+                const newPrefix = prefix === '' ? '' : prefix + extension;
+                html += renderNode(child, newPrefix, isLastChild);
+            });
+        }
+
+        return html;
+    }
+
+    if (treeData) {
+        treeElement.innerHTML = renderNode(treeData);
+    } else {
+        treeElement.innerHTML = '<div class="tree-item">No files to display</div>';
+    }
+</script>
+{{end}}

@@ -1,0 +1,12 @@
+{{define "languages"}}
+{{if .Analysis.Summary.Languages}}
+<div class="section">
+    <h2 class="section-title">💻 Languages Detected</h2>
+    <div class="languages-badges">
+        {{range $lang, $count := .Analysis.Summary.Languages}}
+        <div class="language-badge">{{$lang}}: {{$count}} files</div>
+        {{end}}
+    </div>
+</div>
+{{end}}
+{{end}}

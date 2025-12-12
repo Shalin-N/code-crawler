@@ -1,0 +1,28 @@
+{{define "stats"}}
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-label">Total Files</div>
+        <div class="stat-value">{{.Analysis.Summary.TotalFiles}}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Total Directories</div>
+        <div class="stat-value">{{.Analysis.Summary.TotalDirs}}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Total Size</div>
+        <div class="stat-value">{{formatBytes .Analysis.Summary.TotalSize}}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Languages</div>
+        <div class="stat-value">{{len .Analysis.Summary.Languages}}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Max Depth</div>
+        <div class="stat-value">{{.Analysis.Summary.MaxDepth}}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Total Lines</div>
+        <div class="stat-value">{{.Analysis.Statistics.TotalLines}}</div>
+    </div>
+</div>
+{{end}}

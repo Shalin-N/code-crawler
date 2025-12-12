@@ -1,0 +1,23 @@
+{{define "dependencies"}}
+{{if .Analysis.Dependencies.PackageManagers}}
+<div class="section">
+    <h2 class="section-title">📦 Dependencies</h2>
+    {{range $name, $pm := .Analysis.Dependencies.PackageManagers}}
+    <div class="dependencies-section">
+        <h3 class="dep-title">{{$pm.Name}}</h3>
+        <p style="color: #666; margin-bottom: 15px;">Config: {{range $pm.ConfigFiles}}{{relPath .}} {{end}}</p>
+        {{if $pm.Dependencies}}
+        <div class="dep-list">
+            {{range $dep, $ver := $pm.Dependencies}}
+            <div class="dep-item">
+                <span class="dep-name">{{$dep}}</span>
+                <span class="dep-version">{{$ver}}</span>
+            </div>
+            {{end}}
+        </div>
+        {{end}}
+    </div>
+    {{end}}
+</div>
+{{end}}
+{{end}}
