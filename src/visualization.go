@@ -30,7 +30,7 @@ func (c *Crawler) GenerateVisualization() error {
 	}
 
 	// Parse all template files
-	tmpl, err := template.New("layout.html").Funcs(funcMap).ParseFS(
+	tmpl, err := template.New("index.html").Funcs(funcMap).ParseFS(
 		templatesFS,
 		"visualizations/templates/*.html",
 	)
@@ -47,8 +47,8 @@ func (c *Crawler) GenerateVisualization() error {
 		Analysis: c.Analysis,
 	}
 
-	// Execute the main layout template
-	if err := tmpl.ExecuteTemplate(f, "layout.html", data); err != nil {
+	// Execute the index template
+	if err := tmpl.Execute(f, data); err != nil {
 		return fmt.Errorf("failed to execute template: %w", err)
 	}
 
