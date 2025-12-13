@@ -1,5 +1,22 @@
 {{define "languages"}}
 {{if .Analysis.Summary.Languages}}
+<style>
+    .languages-badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        margin-bottom: 2rem;
+    }
+
+    .language-badge {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-size: 0.9rem;
+        box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+    }
+</style>
 <div class="section">
     <h2 class="section-title">💻 Languages Detected</h2>
     <div class="languages-badges">
