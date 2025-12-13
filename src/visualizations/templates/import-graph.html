@@ -344,55 +344,107 @@
 
     svg.call(zoom);
 
-    // Create force simulation with namespace grouping
-    const simulation = d3.forceSimulation(nodes)
-        .force('link', d3.forceLink(links).id(d => d.id).distance(100))
-        .force('charge', d3.forceManyBody().strength(-300))
+    // Create namespace nodes (grey bubbles) FIRST
+    const namespaceNodes = Array.from(namespaceGroups.entries()).map(([ns, files]) => ({
+        id: `ns-${ns}`,
+        namespace: ns,
+        isNamespace: true,
+        fileCount: files.length,
+        x: width / 2,
+        y: height / 2
+    }));
+    
+    // Add namespace nodes to the nodes array
+    const allNodes = [...namespaceNodes, ...nodes];
+
+    // Custom force to keep files inside namespace bubbles
+    function constrainToNamespace(alpha) {
+        for (let node of allNodes) {
+            if (!node.isNamespace) {
+                const nsNode = namespaceNodes.find(ns => ns.namespace === node.namespace);
+                if (nsNode) {
+                    const dx = node.x - nsNode.x;
+                    const dy = node.y - nsNode.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    const bubbleRadius = Math.max(50, Math.sqrt(nsNode.fileCount) * 15) - 10;
+                    
+                    // If node is outside its bubble, pull it back in
+                    if (distance > bubbleRadius) {
+                        const ratio = bubbleRadius / distance;
+                        node.x = nsNode.x + dx * ratio;
+                        node.y = nsNode.y + dy * ratio;
+                        node.vx = (node.vx || 0) * 0.9; // Dampen velocity
+                        node.vy = (node.vy || 0) * 0.9;
+                    }
+                }
+            }
+        }
+    }
+
+    // Create force simulation with namespace clustering
+    const simulation = d3.forceSimulation(allNodes)
+        .force('link', d3.forceLink(links).id(d => d.id).distance(50))
+        .force('charge', d3.forceManyBody().strength(d => d.isNamespace ? -2000 : -50))
         .force('center', d3.forceCenter(width / 2, height / 2))
-        .force('collision', d3.forceCollide().radius(30))
-        .force('x', d3.forceX().x(d => {
-            // Group nodes by namespace horizontally
-            const namespaces = Array.from(namespaceGroups.keys());
-            const nsIndex = namespaces.indexOf(d.namespace);
-            return (nsIndex / namespaces.length) * width;
-        }).strength(0.1))
-        .force('y', d3.forceY().y(height / 2).strength(0.05));
-
-    // Create namespace group backgrounds
-    const namespaceRects = g.append('g')
-        .attr('class', 'namespace-groups')
-        .selectAll('rect')
-        .data(Array.from(namespaceGroups.entries()))
-        .join('rect')
-        .attr('class', 'namespace-rect')
-        .attr('fill', (d, i) => {
-            const colors = ['rgba(102, 126, 234, 0.05)', 'rgba(118, 75, 162, 0.05)', 
-                          'rgba(255, 107, 107, 0.05)', 'rgba(78, 205, 196, 0.05)',
-                          'rgba(255, 195, 18, 0.05)', 'rgba(72, 219, 251, 0.05)'];
-            return colors[i % colors.length];
-        })
-        .attr('stroke', (d, i) => {
-            const colors = ['rgba(102, 126, 234, 0.3)', 'rgba(118, 75, 162, 0.3)', 
-                          'rgba(255, 107, 107, 0.3)', 'rgba(78, 205, 196, 0.3)',
-                          'rgba(255, 195, 18, 0.3)', 'rgba(72, 219, 251, 0.3)'];
-            return colors[i % colors.length];
-        })
+        .force('collision', d3.forceCollide().radius(d => {
+            if (d.isNamespace) return Math.max(50, Math.sqrt(d.fileCount) * 15) + 10;
+            return 6;
+        }).strength(0.7))
+        .force('x', d3.forceX(d => {
+            if (d.isNamespace) return width / 2;
+            const nsNode = namespaceNodes.find(ns => ns.namespace === d.namespace);
+            return nsNode ? nsNode.x : width / 2;
+        }).strength(d => d.isNamespace ? 0.1 : 0.8))
+        .force('y', d3.forceY(d => {
+            if (d.isNamespace) return height / 2;
+            const nsNode = namespaceNodes.find(ns => ns.namespace === d.namespace);
+            return nsNode ? nsNode.y : height / 2;
+        }).strength(d => d.isNamespace ? 0.1 : 0.8))
+        .force('constrain', constrainToNamespace);
+    
+    // Create namespace circles
+    const namespaceCircles = g.append('g')
+        .attr('class', 'namespace-nodes')
+        .selectAll('circle')
+        .data(namespaceNodes)
+        .join('circle')
+        .attr('class', 'namespace-bubble')
+        .attr('r', d => Math.max(50, Math.sqrt(d.fileCount) * 15))
+        .attr('fill', '#999')
+        .attr('opacity', 0.15)
+        .attr('stroke', '#666')
         .attr('stroke-width', 2)
-        .attr('stroke-dasharray', '5,5')
-        .attr('rx', 10);
-
+        .style('cursor', 'move')
+        .call(drag(simulation))
+        .on('mouseenter', function(event, d) {
+            d3.select(this).attr('opacity', 0.25);
+            tooltip
+                .html(`
+                    <strong>📦 ${d.namespace}</strong><br/>
+                    Files: ${d.fileCount}
+                `)
+                .style('left', (event.pageX + 10) + 'px')
+                .style('top', (event.pageY - 10) + 'px')
+                .classed('show', true);
+        })
+        .on('mouseleave', function(event, d) {
+            d3.select(this).attr('opacity', 0.15);
+            tooltip.classed('show', false);
+        });
+    
     // Add namespace labels
     const namespaceLabels = g.append('g')
         .attr('class', 'namespace-labels')
         .selectAll('text')
-        .data(Array.from(namespaceGroups.entries()))
+        .data(namespaceNodes)
         .join('text')
         .attr('class', 'namespace-label')
-        .text(d => d[0])
-        .attr('font-size', '14px')
+        .text(d => d.namespace)
+        .attr('font-size', '12px')
         .attr('font-weight', 'bold')
-        .attr('fill', '#667eea')
-        .attr('opacity', 0.7);
+        .attr('fill', '#333')
+        .attr('text-anchor', 'middle')
+        .attr('pointer-events', 'none');
 
     // Create links
     const link = g.append('g')
@@ -474,32 +526,14 @@
 
     // Update positions
     simulation.on('tick', () => {
-        // Update namespace group bounds
-        namespaceRects.attr('x', d => {
-            const nodePositions = d[1].map(n => n.x).filter(x => x);
-            return nodePositions.length ? Math.min(...nodePositions) - 40 : 0;
-        })
-        .attr('y', d => {
-            const nodePositions = d[1].map(n => n.y).filter(y => y);
-            return nodePositions.length ? Math.min(...nodePositions) - 40 : 0;
-        })
-        .attr('width', d => {
-            const xPositions = d[1].map(n => n.x).filter(x => x);
-            return xPositions.length ? Math.max(...xPositions) - Math.min(...xPositions) + 80 : 100;
-        })
-        .attr('height', d => {
-            const yPositions = d[1].map(n => n.y).filter(y => y);
-            return yPositions.length ? Math.max(...yPositions) - Math.min(...yPositions) + 80 : 100;
-        });
+        // Update namespace bubbles
+        namespaceCircles
+            .attr('cx', d => d.x)
+            .attr('cy', d => d.y);
 
-        namespaceLabels.attr('x', d => {
-            const nodePositions = d[1].map(n => n.x).filter(x => x);
-            return nodePositions.length ? Math.min(...nodePositions) - 30 : 0;
-        })
-        .attr('y', d => {
-            const nodePositions = d[1].map(n => n.y).filter(y => y);
-            return nodePositions.length ? Math.min(...nodePositions) - 25 : 0;
-        });
+        namespaceLabels
+            .attr('x', d => d.x)
+            .attr('y', d => d.y);
 
         link.attr('d', d => {
             const dx = d.target.x - d.source.x;
