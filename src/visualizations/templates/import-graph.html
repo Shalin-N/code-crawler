@@ -1,0 +1,517 @@
+{{define "import-graph"}}
+{{if .Analysis.Dependencies.ImportGraph}}
+<style>
+    .graph-container {
+        background: #f8f9fa;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    #import-graph {
+        width: 100%;
+        height: 700px;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .graph-controls {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .graph-controls button, .graph-controls select {
+        padding: 0.5rem 1rem;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        background: white;
+        cursor: pointer;
+        font-size: 0.9rem;
+        transition: all 0.2s;
+    }
+
+    .graph-controls button:hover {
+        background: #667eea;
+        color: white;
+        border-color: #667eea;
+    }
+
+    .graph-legend {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+        font-size: 0.9rem;
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .legend-color {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        border: 2px solid #333;
+    }
+
+    .graph-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .stat-card {
+        background: white;
+        padding: 1rem;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    }
+
+    .stat-value {
+        font-size: 2rem;
+        font-weight: bold;
+        color: #667eea;
+    }
+
+    .stat-label {
+        color: #666;
+        font-size: 0.9rem;
+        margin-top: 0.25rem;
+    }
+
+    .tooltip {
+        position: absolute;
+        background: rgba(0, 0, 0, 0.9);
+        color: white;
+        padding: 0.75rem;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.2s;
+        max-width: 300px;
+        z-index: 1000;
+    }
+
+    .tooltip.show {
+        opacity: 1;
+    }
+
+    .node {
+        cursor: pointer;
+        stroke: #fff;
+        stroke-width: 2px;
+    }
+
+    .node:hover {
+        stroke: #667eea;
+        stroke-width: 3px;
+    }
+
+    .link {
+        stroke: #999;
+        stroke-opacity: 0.6;
+        stroke-width: 1.5px;
+        fill: none;
+    }
+
+    .link.highlighted {
+        stroke: #667eea;
+        stroke-opacity: 1;
+        stroke-width: 3px;
+    }
+
+    .node-label {
+        font-size: 10px;
+        pointer-events: none;
+        fill: #333;
+    }
+</style>
+
+<div class="section">
+    <h2 class="section-title">🔗 Import Graph</h2>
+    
+    <div class="graph-container">
+        <div class="graph-stats">
+            <div class="stat-card">
+                <div class="stat-value" id="total-files">0</div>
+                <div class="stat-label">Files with Imports</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="total-connections">0</div>
+                <div class="stat-label">Import Connections</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="most-imported">-</div>
+                <div class="stat-label">Most Imported File</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="circular-deps">0</div>
+                <div class="stat-label">Potential Cycles</div>
+            </div>
+        </div>
+
+        <div class="graph-controls">
+            <button onclick="resetGraph()">🔄 Reset View</button>
+            <button onclick="toggleLabels()">🏷️ Toggle Labels</button>
+            <select id="language-filter" onchange="filterByLanguage()">
+                <option value="all">All Languages</option>
+            </select>
+            <button onclick="highlightCycles()">⚠️ Highlight Cycles</button>
+        </div>
+
+        <div class="graph-legend" id="graph-legend"></div>
+
+        <div id="import-graph"></div>
+        <div class="tooltip" id="graph-tooltip"></div>
+    </div>
+</div>
+
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script>
+(function() {
+    const importData = JSON.parse({{toJSON .Analysis.Dependencies.ImportGraph}});
+    const filesByType = JSON.parse({{toJSON .Analysis.FilesByType}});
+    
+    // Transform data into nodes and links
+    const nodes = [];
+    const links = [];
+    const nodeMap = new Map();
+    const languageColors = {
+        'Go': '#00ADD8',
+        'Python': '#3776AB',
+        'JavaScript': '#F7DF1E',
+        'TypeScript': '#3178C6',
+        'Java': '#007396',
+        'C#': '#239120',
+        'C++': '#00599C',
+        'Rust': '#000000',
+        'Ruby': '#CC342D',
+        'PHP': '#777BB4',
+        'Default': '#999999'
+    };
+
+    // Create nodes from import graph
+    let nodeId = 0;
+    for (const [filePath, imports] of Object.entries(importData)) {
+        if (!nodeMap.has(filePath)) {
+            const lang = getFileLanguage(filePath);
+            nodeMap.set(filePath, {
+                id: nodeId++,
+                path: filePath,
+                name: getFileName(filePath),
+                language: lang,
+                imports: imports.length,
+                importedBy: 0
+            });
+        }
+
+        // Create nodes for imported files if they don't exist
+        imports.forEach(importPath => {
+            if (!nodeMap.has(importPath)) {
+                const lang = getFileLanguage(importPath);
+                nodeMap.set(importPath, {
+                    id: nodeId++,
+                    path: importPath,
+                    name: getFileName(importPath),
+                    language: lang,
+                    imports: 0,
+                    importedBy: 0
+                });
+            }
+            nodeMap.get(importPath).importedBy++;
+        });
+    }
+
+    nodes.push(...Array.from(nodeMap.values()));
+
+    // Create links
+    for (const [filePath, imports] of Object.entries(importData)) {
+        const sourceNode = nodeMap.get(filePath);
+        imports.forEach(importPath => {
+            const targetNode = nodeMap.get(importPath);
+            if (sourceNode && targetNode) {
+                links.push({
+                    source: sourceNode.id,
+                    target: targetNode.id
+                });
+            }
+        });
+    }
+
+    function getFileName(path) {
+        return path.split('/').pop() || path;
+    }
+
+    function getFileLanguage(path) {
+        for (const [lang, files] of Object.entries(filesByType)) {
+            if (files.some(f => f.path === path)) {
+                return lang;
+            }
+        }
+        // Guess from extension
+        const ext = path.split('.').pop();
+        const extMap = {
+            'go': 'Go', 'py': 'Python', 'js': 'JavaScript', 
+            'ts': 'TypeScript', 'java': 'Java', 'cs': 'C#',
+            'cpp': 'C++', 'rs': 'Rust', 'rb': 'Ruby', 'php': 'PHP'
+        };
+        return extMap[ext] || 'Default';
+    }
+
+    function getNodeColor(language) {
+        return languageColors[language] || languageColors['Default'];
+    }
+
+    // Update statistics
+    document.getElementById('total-files').textContent = nodes.length;
+    document.getElementById('total-connections').textContent = links.length;
+    
+    const mostImported = nodes.reduce((max, node) => 
+        node.importedBy > max.importedBy ? node : max, nodes[0]);
+    document.getElementById('most-imported').textContent = mostImported ? mostImported.name : '-';
+
+    // Create legend
+    const languages = [...new Set(nodes.map(n => n.language))];
+    const legend = document.getElementById('graph-legend');
+    languages.forEach(lang => {
+        const item = document.createElement('div');
+        item.className = 'legend-item';
+        item.innerHTML = `
+            <div class="legend-color" style="background-color: ${getNodeColor(lang)}"></div>
+            <span>${lang}</span>
+        `;
+        legend.appendChild(item);
+    });
+
+    // Populate language filter
+    const filter = document.getElementById('language-filter');
+    languages.forEach(lang => {
+        const option = document.createElement('option');
+        option.value = lang;
+        option.textContent = lang;
+        filter.appendChild(option);
+    });
+
+    // D3.js Force-Directed Graph
+    const container = document.getElementById('import-graph');
+    const width = container.clientWidth;
+    const height = 700;
+
+    const svg = d3.select('#import-graph')
+        .append('svg')
+        .attr('width', width)
+        .attr('height', height);
+
+    const g = svg.append('g');
+
+    // Add zoom behavior
+    const zoom = d3.zoom()
+        .scaleExtent([0.1, 10])
+        .on('zoom', (event) => {
+            g.attr('transform', event.transform);
+        });
+
+    svg.call(zoom);
+
+    // Create force simulation
+    const simulation = d3.forceSimulation(nodes)
+        .force('link', d3.forceLink(links).id(d => d.id).distance(100))
+        .force('charge', d3.forceManyBody().strength(-300))
+        .force('center', d3.forceCenter(width / 2, height / 2))
+        .force('collision', d3.forceCollide().radius(30));
+
+    // Create links
+    const link = g.append('g')
+        .selectAll('path')
+        .data(links)
+        .join('path')
+        .attr('class', 'link')
+        .attr('marker-end', 'url(#arrowhead)');
+
+    // Add arrowhead marker
+    svg.append('defs').append('marker')
+        .attr('id', 'arrowhead')
+        .attr('viewBox', '-0 -5 10 10')
+        .attr('refX', 25)
+        .attr('refY', 0)
+        .attr('orient', 'auto')
+        .attr('markerWidth', 6)
+        .attr('markerHeight', 6)
+        .append('path')
+        .attr('d', 'M 0,-5 L 10,0 L 0,5')
+        .attr('fill', '#999');
+
+    // Create nodes
+    const node = g.append('g')
+        .selectAll('circle')
+        .data(nodes)
+        .join('circle')
+        .attr('class', 'node')
+        .attr('r', d => 5 + Math.sqrt(d.importedBy) * 3)
+        .attr('fill', d => getNodeColor(d.language))
+        .call(drag(simulation));
+
+    // Create labels
+    const labels = g.append('g')
+        .selectAll('text')
+        .data(nodes)
+        .join('text')
+        .attr('class', 'node-label')
+        .text(d => d.name)
+        .attr('x', 12)
+        .attr('y', 3)
+        .style('display', 'none');
+
+    let labelsVisible = false;
+    window.toggleLabels = function() {
+        labelsVisible = !labelsVisible;
+        labels.style('display', labelsVisible ? 'block' : 'none');
+    };
+
+    // Tooltip
+    const tooltip = d3.select('#graph-tooltip');
+
+    node.on('mouseenter', function(event, d) {
+        tooltip
+            .html(`
+                <strong>${d.name}</strong><br/>
+                Language: ${d.language}<br/>
+                Imports: ${d.imports}<br/>
+                Imported by: ${d.importedBy}<br/>
+                <small>${d.path}</small>
+            `)
+            .style('left', (event.pageX + 10) + 'px')
+            .style('top', (event.pageY - 10) + 'px')
+            .classed('show', true);
+
+        // Highlight connected nodes
+        d3.select(this).attr('r', d => 8 + Math.sqrt(d.importedBy) * 3);
+        
+        link.classed('highlighted', l => 
+            l.source.id === d.id || l.target.id === d.id
+        );
+    })
+    .on('mouseleave', function(event, d) {
+        tooltip.classed('show', false);
+        d3.select(this).attr('r', d => 5 + Math.sqrt(d.importedBy) * 3);
+        link.classed('highlighted', false);
+    });
+
+    // Update positions
+    simulation.on('tick', () => {
+        link.attr('d', d => {
+            const dx = d.target.x - d.source.x;
+            const dy = d.target.y - d.source.y;
+            const dr = Math.sqrt(dx * dx + dy * dy);
+            return `M${d.source.x},${d.source.y}A${dr},${dr} 0 0,1 ${d.target.x},${d.target.y}`;
+        });
+
+        node
+            .attr('cx', d => d.x)
+            .attr('cy', d => d.y);
+
+        labels
+            .attr('x', d => d.x + 12)
+            .attr('y', d => d.y + 3);
+    });
+
+    // Drag behavior
+    function drag(simulation) {
+        function dragstarted(event) {
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            event.subject.fx = event.subject.x;
+            event.subject.fy = event.subject.y;
+        }
+
+        function dragged(event) {
+            event.subject.fx = event.x;
+            event.subject.fy = event.y;
+        }
+
+        function dragended(event) {
+            if (!event.active) simulation.alphaTarget(0);
+            event.subject.fx = null;
+            event.subject.fy = null;
+        }
+
+        return d3.drag()
+            .on('start', dragstarted)
+            .on('drag', dragged)
+            .on('end', dragended);
+    }
+
+    // Filter by language
+    window.filterByLanguage = function() {
+        const selectedLang = document.getElementById('language-filter').value;
+        
+        node.style('opacity', d => 
+            selectedLang === 'all' || d.language === selectedLang ? 1 : 0.1
+        );
+        
+        link.style('opacity', l => {
+            const sourceNode = nodes.find(n => n.id === l.source.id);
+            const targetNode = nodes.find(n => n.id === l.target.id);
+            return (selectedLang === 'all' || 
+                   sourceNode.language === selectedLang || 
+                   targetNode.language === selectedLang) ? 0.6 : 0.05;
+        });
+    };
+
+    // Reset graph
+    window.resetGraph = function() {
+        svg.transition().duration(750).call(
+            zoom.transform,
+            d3.zoomIdentity
+        );
+        document.getElementById('language-filter').value = 'all';
+        filterByLanguage();
+    };
+
+    // Detect cycles (simplified)
+    window.highlightCycles = function() {
+        const visited = new Set();
+        const recursionStack = new Set();
+        let cycleCount = 0;
+
+        function hasCycle(nodeId) {
+            visited.add(nodeId);
+            recursionStack.add(nodeId);
+
+            const outgoingLinks = links.filter(l => l.source.id === nodeId);
+            for (const link of outgoingLinks) {
+                const targetId = link.target.id;
+                if (!visited.has(targetId)) {
+                    if (hasCycle(targetId)) return true;
+                } else if (recursionStack.has(targetId)) {
+                    cycleCount++;
+                    return true;
+                }
+            }
+
+            recursionStack.delete(nodeId);
+            return false;
+        }
+
+        nodes.forEach(n => {
+            if (!visited.has(n.id)) {
+                hasCycle(n.id);
+            }
+        });
+
+        document.getElementById('circular-deps').textContent = cycleCount;
+        alert(cycleCount > 0 
+            ? `Found ${cycleCount} potential circular dependencies!` 
+            : 'No circular dependencies detected!');
+    };
+})();
+</script>
+{{end}}
+{{end}}
