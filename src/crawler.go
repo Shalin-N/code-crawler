@@ -61,12 +61,14 @@ type FileInfo struct {
 	Extension string `json:"extension"`
 	Language  string `json:"language"`
 	Lines     int    `json:"lines,omitempty"`
+	Namespace string `json:"namespace,omitempty"`
 }
 
 // DependencyAnalysis holds dependency information
 type DependencyAnalysis struct {
 	PackageManagers map[string]*PackageManager `json:"package_managers"`
 	ImportGraph     map[string][]string        `json:"import_graph"`
+	FileNamespaces  map[string]string          `json:"file_namespaces"`
 	ExternalDeps    []string                   `json:"external_deps"`
 }
 
@@ -99,6 +101,7 @@ func NewCrawler(config *CrawlerConfig) *Crawler {
 			Dependencies: &DependencyAnalysis{
 				PackageManagers: make(map[string]*PackageManager),
 				ImportGraph:     make(map[string][]string),
+				FileNamespaces:  make(map[string]string),
 				ExternalDeps:    []string{},
 			},
 			Summary: &Summary{

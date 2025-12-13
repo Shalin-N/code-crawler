@@ -212,11 +212,21 @@ func (c *Crawler) analyzeImports() {
 		"Ruby":       regexp.MustCompile(`(?m)^require\s+['"]([^'"]+)['"]`),
 	}
 
+	namespacePatterns := map[string]*regexp.Regexp{
+		"C#":         regexp.MustCompile(`(?m)^\s*namespace\s+([\w\.]+)`),
+		"Java":       regexp.MustCompile(`(?m)^\s*package\s+([\w\.]+)`),
+		"Go":         regexp.MustCompile(`(?m)^\s*package\s+([\w]+)`),
+		"JavaScript": regexp.MustCompile(`(?m)^export\s+(?:default\s+)?(?:class|function|const)\s+(\w+)`),
+		"TypeScript": regexp.MustCompile(`(?m)^export\s+(?:default\s+)?(?:class|function|const|interface|type)\s+(\w+)`),
+	}
+
 	for lang, files := range c.Analysis.FilesByType {
 		pattern, exists := importPatterns[lang]
 		if !exists {
 			continue
 		}
+
+		namespacePattern := namespacePatterns[lang]
 
 		for _, file := range files {
 			content, err := os.ReadFile(file.Path)
@@ -224,7 +234,17 @@ func (c *Crawler) analyzeImports() {
 				continue
 			}
 
-			matches := pattern.FindAllStringSubmatch(string(content), -1)
+			contentStr := string(content)
+
+			// Extract namespace
+			if namespacePattern != nil {
+				if nsMatch := namespacePattern.FindStringSubmatch(contentStr); len(nsMatch) > 1 {
+					c.Analysis.Dependencies.FileNamespaces[file.Path] = nsMatch[1]
+				}
+			}
+
+			// Extract imports
+			matches := pattern.FindAllStringSubmatch(contentStr, -1)
 			var imports []string
 
 			for _, match := range matches {

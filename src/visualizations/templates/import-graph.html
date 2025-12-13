@@ -179,11 +179,13 @@
 (function() {
     const importData = JSON.parse({{toJSON .Analysis.Dependencies.ImportGraph}});
     const filesByType = JSON.parse({{toJSON .Analysis.FilesByType}});
+    const fileNamespaces = JSON.parse({{toJSON .Analysis.Dependencies.FileNamespaces}});
     
     // Transform data into nodes and links
     const nodes = [];
     const links = [];
     const nodeMap = new Map();
+    const namespaceGroups = new Map();
     const languageColors = {
         'Go': '#00ADD8',
         'Python': '#3776AB',
@@ -198,33 +200,54 @@
         'Default': '#999999'
     };
 
-    // Create nodes from import graph
+    // Create nodes from import graph with namespace grouping
     let nodeId = 0;
     for (const [filePath, imports] of Object.entries(importData)) {
         if (!nodeMap.has(filePath)) {
             const lang = getFileLanguage(filePath);
-            nodeMap.set(filePath, {
+            const namespace = fileNamespaces[filePath] || 'No Namespace';
+            
+            // Track namespace groups
+            if (!namespaceGroups.has(namespace)) {
+                namespaceGroups.set(namespace, []);
+            }
+            
+            const node = {
                 id: nodeId++,
                 path: filePath,
                 name: getFileName(filePath),
                 language: lang,
+                namespace: namespace,
                 imports: imports.length,
                 importedBy: 0
-            });
+            };
+            
+            nodeMap.set(filePath, node);
+            namespaceGroups.get(namespace).push(node);
         }
 
         // Create nodes for imported files if they don't exist
         imports.forEach(importPath => {
             if (!nodeMap.has(importPath)) {
                 const lang = getFileLanguage(importPath);
-                nodeMap.set(importPath, {
+                const namespace = fileNamespaces[importPath] || importPath; // Use import path as namespace for external deps
+                
+                if (!namespaceGroups.has(namespace)) {
+                    namespaceGroups.set(namespace, []);
+                }
+                
+                const node = {
                     id: nodeId++,
                     path: importPath,
                     name: getFileName(importPath),
                     language: lang,
+                    namespace: namespace,
                     imports: 0,
                     importedBy: 0
-                });
+                };
+                
+                nodeMap.set(importPath, node);
+                namespaceGroups.get(namespace).push(node);
             }
             nodeMap.get(importPath).importedBy++;
         });
@@ -321,12 +344,55 @@
 
     svg.call(zoom);
 
-    // Create force simulation
+    // Create force simulation with namespace grouping
     const simulation = d3.forceSimulation(nodes)
         .force('link', d3.forceLink(links).id(d => d.id).distance(100))
         .force('charge', d3.forceManyBody().strength(-300))
         .force('center', d3.forceCenter(width / 2, height / 2))
-        .force('collision', d3.forceCollide().radius(30));
+        .force('collision', d3.forceCollide().radius(30))
+        .force('x', d3.forceX().x(d => {
+            // Group nodes by namespace horizontally
+            const namespaces = Array.from(namespaceGroups.keys());
+            const nsIndex = namespaces.indexOf(d.namespace);
+            return (nsIndex / namespaces.length) * width;
+        }).strength(0.1))
+        .force('y', d3.forceY().y(height / 2).strength(0.05));
+
+    // Create namespace group backgrounds
+    const namespaceRects = g.append('g')
+        .attr('class', 'namespace-groups')
+        .selectAll('rect')
+        .data(Array.from(namespaceGroups.entries()))
+        .join('rect')
+        .attr('class', 'namespace-rect')
+        .attr('fill', (d, i) => {
+            const colors = ['rgba(102, 126, 234, 0.05)', 'rgba(118, 75, 162, 0.05)', 
+                          'rgba(255, 107, 107, 0.05)', 'rgba(78, 205, 196, 0.05)',
+                          'rgba(255, 195, 18, 0.05)', 'rgba(72, 219, 251, 0.05)'];
+            return colors[i % colors.length];
+        })
+        .attr('stroke', (d, i) => {
+            const colors = ['rgba(102, 126, 234, 0.3)', 'rgba(118, 75, 162, 0.3)', 
+                          'rgba(255, 107, 107, 0.3)', 'rgba(78, 205, 196, 0.3)',
+                          'rgba(255, 195, 18, 0.3)', 'rgba(72, 219, 251, 0.3)'];
+            return colors[i % colors.length];
+        })
+        .attr('stroke-width', 2)
+        .attr('stroke-dasharray', '5,5')
+        .attr('rx', 10);
+
+    // Add namespace labels
+    const namespaceLabels = g.append('g')
+        .attr('class', 'namespace-labels')
+        .selectAll('text')
+        .data(Array.from(namespaceGroups.entries()))
+        .join('text')
+        .attr('class', 'namespace-label')
+        .text(d => d[0])
+        .attr('font-size', '14px')
+        .attr('font-weight', 'bold')
+        .attr('fill', '#667eea')
+        .attr('opacity', 0.7);
 
     // Create links
     const link = g.append('g')
@@ -383,6 +449,7 @@
         tooltip
             .html(`
                 <strong>${d.name}</strong><br/>
+                Namespace: ${d.namespace}<br/>
                 Language: ${d.language}<br/>
                 Imports: ${d.imports}<br/>
                 Imported by: ${d.importedBy}<br/>
@@ -407,6 +474,33 @@
 
     // Update positions
     simulation.on('tick', () => {
+        // Update namespace group bounds
+        namespaceRects.attr('x', d => {
+            const nodePositions = d[1].map(n => n.x).filter(x => x);
+            return nodePositions.length ? Math.min(...nodePositions) - 40 : 0;
+        })
+        .attr('y', d => {
+            const nodePositions = d[1].map(n => n.y).filter(y => y);
+            return nodePositions.length ? Math.min(...nodePositions) - 40 : 0;
+        })
+        .attr('width', d => {
+            const xPositions = d[1].map(n => n.x).filter(x => x);
+            return xPositions.length ? Math.max(...xPositions) - Math.min(...xPositions) + 80 : 100;
+        })
+        .attr('height', d => {
+            const yPositions = d[1].map(n => n.y).filter(y => y);
+            return yPositions.length ? Math.max(...yPositions) - Math.min(...yPositions) + 80 : 100;
+        });
+
+        namespaceLabels.attr('x', d => {
+            const nodePositions = d[1].map(n => n.x).filter(x => x);
+            return nodePositions.length ? Math.min(...nodePositions) - 30 : 0;
+        })
+        .attr('y', d => {
+            const nodePositions = d[1].map(n => n.y).filter(y => y);
+            return nodePositions.length ? Math.min(...nodePositions) - 25 : 0;
+        });
+
         link.attr('d', d => {
             const dx = d.target.x - d.source.x;
             const dy = d.target.y - d.source.y;
